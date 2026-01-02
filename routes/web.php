@@ -47,9 +47,9 @@ Route::middleware(['auth'])->group(function () {
 require __DIR__.'/auth.php';
 
 // --- GOOGLE CALENDAR PLUGIN ROUTES ---
-// Visit /google/auth to start the connection
-Route::get('/google/auth', [GoogleCalendarController::class, 'redirectToGoogle']);
-// Google redirects back here automatically
-Route::get('/google/callback', [GoogleCalendarController::class, 'handleGoogleCallback']);
+// We added /auth/ to these to match your Google Cloud Redirect URI
+Route::get('/auth/google/auth', [GoogleCalendarController::class, 'redirectToGoogle']);
+Route::get('/auth/google/callback', [GoogleCalendarController::class, 'handleGoogleCallback']);
+
 // This is the URL you will put into your TRMNL Private Plugin
 Route::get('/api/trmnl/calendar', [GoogleCalendarController::class, 'getTrmnlData']);
