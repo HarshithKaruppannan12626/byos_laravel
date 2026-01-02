@@ -10,6 +10,7 @@
     ],
     "license": "MIT",
     "require": {
+        "google/apiclient": "^2.15",
         "php": "^8.2",
         "ext-imagick": "*",
         "ext-simplexml": "*",
