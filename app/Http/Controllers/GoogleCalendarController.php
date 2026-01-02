@@ -10,9 +10,11 @@ class GoogleCalendarController extends Controller
     private function getClient()
     {
         $client = new Client();
-        $client->setClientId(config('services.google.client_id'));
-        $client->setClientSecret(config('services.google.client_secret'));
-        $client->setRedirectUri(config('services.google.redirect'));
+        // Updated to use env() to pull directly from Render Environment Variables
+        $client->setClientId(env('GOOGLE_CLIENT_ID'));
+        $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
+        $client->setRedirectUri(env('GOOGLE_REDIRECT_URI'));
+        
         $client->addScope(Calendar::CALENDAR_READONLY);
         $client->setAccessType('offline');
         $client->setPrompt('select_account consent');
@@ -27,6 +29,8 @@ class GoogleCalendarController extends Controller
     public function handleGoogleCallback(Request $request)
     {
         $client = $this->getClient();
+        
+        // This exchanges the code from Google for an access token
         $token = $client->fetchAccessTokenWithAuthCode($request->get('code'));
         
         // Save the token to a secure file on your Render server
@@ -46,9 +50,12 @@ class GoogleCalendarController extends Controller
 
         $client->setAccessToken(json_decode(file_get_contents($tokenPath), true));
 
+        // Automatically refresh the token if it expires
         if ($client->isAccessTokenExpired()) {
-            $client->fetchAccessTokenWithRefreshToken($client->getRefreshToken());
-            file_put_contents($tokenPath, json_encode($client->getAccessToken()));
+            if ($client->getRefreshToken()) {
+                $client->fetchAccessTokenWithRefreshToken($client->getRefreshToken());
+                file_put_contents($tokenPath, json_encode($client->getAccessToken()));
+            }
         }
 
         $service = new Calendar($client);
