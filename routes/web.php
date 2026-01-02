@@ -4,6 +4,8 @@ use App\Models\Plugin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
+// --- ADDED FOR GOOGLE CALENDAR ---
+use App\Http\Controllers\GoogleCalendarController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -43,3 +45,11 @@ Route::middleware(['auth'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// --- GOOGLE CALENDAR PLUGIN ROUTES ---
+// Visit /google/auth to start the connection
+Route::get('/google/auth', [GoogleCalendarController::class, 'redirectToGoogle']);
+// Google redirects back here automatically
+Route::get('/google/callback', [GoogleCalendarController::class, 'handleGoogleCallback']);
+// This is the URL you will put into your TRMNL Private Plugin
+Route::get('/api/trmnl/calendar', [GoogleCalendarController::class, 'getTrmnlData']);
