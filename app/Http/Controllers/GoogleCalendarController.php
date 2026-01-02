@@ -4,17 +4,16 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Google\Client;
 use Google\Service\Calendar;
+use Carbon\Carbon;
 
 class GoogleCalendarController extends Controller
 {
     private function getClient()
     {
         $client = new Client();
-        // Updated to use env() to pull directly from Render Environment Variables
         $client->setClientId(env('GOOGLE_CLIENT_ID'));
         $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
         $client->setRedirectUri(env('GOOGLE_REDIRECT_URI'));
-        
         $client->addScope(Calendar::CALENDAR_READONLY);
         $client->setAccessType('offline');
         $client->setPrompt('select_account consent');
@@ -29,13 +28,8 @@ class GoogleCalendarController extends Controller
     public function handleGoogleCallback(Request $request)
     {
         $client = $this->getClient();
-        
-        // This exchanges the code from Google for an access token
         $token = $client->fetchAccessTokenWithAuthCode($request->get('code'));
-        
-        // Save the token to a secure file on your Render server
         file_put_contents(storage_path('google_token.json'), json_encode($token));
-        
         return "Connected! You can now close this tab and check your TRMNL.";
     }
 
@@ -45,12 +39,11 @@ class GoogleCalendarController extends Controller
         $tokenPath = storage_path('google_token.json');
 
         if (!file_exists($tokenPath)) {
-            return response()->json(['error' => 'Not authenticated. Visit /google/auth first.'], 401);
+            return response()->json(['error' => 'Not authenticated.'], 401);
         }
 
         $client->setAccessToken(json_decode(file_get_contents($tokenPath), true));
 
-        // Automatically refresh the token if it expires
         if ($client->isAccessTokenExpired()) {
             if ($client->getRefreshToken()) {
                 $client->fetchAccessTokenWithRefreshToken($client->getRefreshToken());
@@ -59,21 +52,42 @@ class GoogleCalendarController extends Controller
         }
 
         $service = new Calendar($client);
+
+        // --- Weekly View Logic ---
+        $weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $weekEnd   = Carbon::now()->endOfWeek(Carbon::SUNDAY);
+
+        $days = [
+            'Monday' => [], 'Tuesday' => [], 'Wednesday' => [],
+            'Thursday' => [], 'Friday' => [], 'Saturday' => [], 'Sunday' => [],
+        ];
+
         $events = $service->events->listEvents('primary', [
-            'maxResults' => 15,
-            'orderBy' => 'startTime',
+            'timeMin'      => $weekStart->toRfc3339String(),
+            'timeMax'      => $weekEnd->toRfc3339String(),
             'singleEvents' => true,
-            'timeMin' => date('c'),
+            'orderBy'      => 'startTime',
         ]);
 
-        $data = ['events' => []];
         foreach ($events->getItems() as $event) {
-            $data['events'][] = [
-                'title' => $event->getSummary(),
-                'time' => date('H:i', strtotime($event->start->dateTime ?? $event->start->date))
-            ];
+            $title = $event->getSummary() ?? 'Untitled';
+            if ($event->getStart()->getDateTime()) {
+                $start = Carbon::parse($event->getStart()->getDateTime());
+                $time = $start->format('g:ia');
+            } else {
+                $start = Carbon::parse($event->getStart()->getDate());
+                $time = 'All Day';
+            }
+
+            $dayName = $start->format('l');
+            if (array_key_exists($dayName, $days)) {
+                $days[$dayName][] = [
+                    'title' => $title,
+                    'time'  => $time,
+                ];
+            }
         }
 
-        return response()->json($data);
+        return response()->json(['days' => $days]);
     }
 }
